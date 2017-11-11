@@ -2,6 +2,15 @@
 set -ex
 now=`date +%Y%m%d-%H%M%S`
 
+# Nginx
+if [ -e /var/log/nginx/access.log ]; then
+  mv /var/log/nginx/access.log /var/log/nginx/access.log.$now
+fi
+
+if [ -e conf/nginx.conf ]; then
+  cp conf/nginx.conf /etc/nginx/nginx.conf
+fi
+
 # MySQL
 if [ "$(pgrep mysql | wc -l)" ]; then
   mysqladmin -uroot -ppassword flush-logs
@@ -26,5 +35,6 @@ if [ -e conf/isuketch.react.service ]; then
 fi
 
 systemctl daemon-reload
+systemctl reload nginx
 systemctl restart mysql isuketch.python isuketch.react
-journalctl -f -u mysql -u isuketch.python -u isuketch.react
+journalctl -f -u nginx -u mysql -u isuketch.python -u isuketch.react

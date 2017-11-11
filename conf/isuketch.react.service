@@ -4,7 +4,6 @@ Description = isucon6 final frontend application
 [Service]
 WorkingDirectory=/home/isucon/webapp/react
 EnvironmentFile=/home/isucon/webapp/env.sh
-AmbientCapabilities=CAP_NET_BIND_SERVICE
 
 ExecStart = /usr/bin/nodejs build/server.js
 

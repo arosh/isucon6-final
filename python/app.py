@@ -384,4 +384,4 @@ def post_api_strokes_rooms_id(id):
 
 if __name__ == '__main__':
     debug = os.environ.get('ISUCON_ENV') != 'production'
-    app.run(host='', port=80)
+    app.run(host='', port=8000)
