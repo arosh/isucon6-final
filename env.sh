@@ -1,0 +1,10 @@
+ISUCON_ENV=production
+MYSQL_HOST=localhost
+MYSQL_PORT=3306
+MYSQL_USER=isucon
+MYSQL_PASS=isucon
+API=http://localhost:80
+SSL_KEY=/home/isucon/webapp/ssl/oreore.key
+SSL_CERT=/home/isucon/webapp/ssl/oreore.crt
+NODE_ENV=production
+PORT=8443
