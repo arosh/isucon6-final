@@ -383,6 +383,9 @@ def post_api_strokes_rooms_id(id):
                 'y': point['y']
             })
         cursor.connection.commit()
+        filename = '../react/img/' + id + '.svg'
+        if os.path.exists(filename):
+            os.remove(filename)
     except Exception as e:
         cursor.connection.rollback()
         app.logger.error(e)

@@ -48,11 +48,13 @@ app.get('/img/:id', (req, res) => {
           strokes={json.room.strokes}
         />
       );
-      res.type('image/svg+xml').send(
-        '<?xml version="1.0" standalone="no"?>' +
+      const data = '<?xml version="1.0" standalone="no"?>' +
         '<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">' +
-        svg
-      );
+        svg;
+      fs.writeFile(`img/${req.params.id}.svg`, data, (err) => {
+        if (err) throw err;
+        res.type('image/svg+xml').send(data);
+      });
     })
     .catch((err) => {
       console.log(`error: ${err.message}`);
