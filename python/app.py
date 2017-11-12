@@ -224,6 +224,19 @@ def post_api_rooms():
     room = get_room(db, room_id)
     return jsonify({'room': type_cast_room_data(room)})
 
+def get_strokes_with_points(db, room_id, greater_than_id):
+    sql = '''
+    SELECT
+        `points`.`id` AS `id`,
+        `points`.`stroke_id` AS `stroke_id`,
+        `points`.`x` AS `x`,
+        `points`.`y` AS `y`
+    FROM `strokes`
+    JOIN `points` ON `points`.`stroke_id` = `strokes`.`id`
+    WHERE `strokes`.`room_id` = %(room_id)s AND `strokes`.`id` > %(greater_than_id)s
+    ORDER BY `points`.`id` ASC'''
+    return select_all(db, sql, {'room_id': room_id, 'greater_than_id': greater_than_id})
+
 
 @app.route('/api/rooms/<id>')
 def get_api_rooms_id(id):
@@ -236,9 +249,15 @@ def get_api_rooms_id(id):
         return res
 
     strokes = get_strokes(db, room['id'], 0)
+    points_all = get_strokes_with_points(db, room['id'], 0)
+    points = {}
+    for point in points_all:
+        stroke_id = point['stroke_id']
+        points.setdefault(stroke_id, [])
+        points[stroke_id].append(point)
 
     for i, stroke in enumerate(strokes):
-        strokes[i]['points'] = get_stroke_points(db, stroke['id'])
+        strokes[i]['points'] = points[stroke['id']]
 
     room['strokes'] = strokes
     room['watcher_count'] = get_watcher_count(db, room['id'])
