@@ -300,29 +300,27 @@ def get_api_stream_rooms_id(id):
             'data:%d\n\n' % (watcher_count)
         )
 
-        for loop in range(6):
-            time.sleep(0.5)  # 500ms
 
-            strokes = get_strokes(db, room['id'], last_stroke_id)
-            # app.logger.info(strokes)
+	strokes = get_strokes(db, room['id'], last_stroke_id)
+        # app.logger.info(strokes)
 
-            for stroke in strokes:
-                stroke['points'] = get_stroke_points(db, stroke['id'])
-                yield print_and_flush(
-                    'id:' + str(stroke['id']) + '\n\n' +
-                    'event:stroke\n' +
-                    'data:' + json.dumps(type_cast_stroke_data(stroke)) + '\n\n'
-                )
-                last_stroke_id = stroke['id']
+	for stroke in strokes:
+	    stroke['points'] = get_stroke_points(db, stroke['id'])
+	    yield print_and_flush(
+	    	'id:' + str(stroke['id']) + '\n\n' +
+		'event:stroke\n' +
+		'data:' + json.dumps(type_cast_stroke_data(stroke)) + '\n\n'
+	    )
+	    last_stroke_id = stroke['id']
 
-            update_room_watcher(db, room['id'], token['id'])
-            new_watcher_count = get_watcher_count(db, room['id'])
-            if new_watcher_count != watcher_count:
-                watcher_count = new_watcher_count
-                yield print_and_flush(
-                    'event:watcher_count\n' +
-                    'data:%d\n\n' % (watcher_count)
-                )
+	update_room_watcher(db, room['id'], token['id'])
+	new_watcher_count = get_watcher_count(db, room['id'])
+	if new_watcher_count != watcher_count:
+	    watcher_count = new_watcher_count
+	    yield print_and_flush(
+	        'event:watcher_count\n' +
+	        'data:%d\n\n' % (watcher_count)
+	    )
 
     return Response(gen(db, room, token, last_stroke_id), mimetype='text/event-stream')
 
@@ -403,6 +401,15 @@ def post_api_strokes_rooms_id(id):
 
     return jsonify({'stroke': type_cast_stroke_data(stroke)})
 
+#from wsgi_lineprof.filters import FilenameFilter, TotalTimeSorter, TopItemsFilter
+#from wsgi_lineprof.middleware import LineProfilerMiddleware
+#filters = [
+#    FilenameFilter("/home/isucon/webapp/python/app.py"), # Flaskのファイル名にも app.py が含まれていて若干邪魔なのでなんとかしたい
+#    TotalTimeSorter(),
+#    TopItemsFilter(n=20),
+#]
+#f = open("lineprof.log", "w")
+#app.wsgi_app = LineProfilerMiddleware(app.wsgi_app, filters=filters, stream=f)
 
 if __name__ == '__main__':
     debug = os.environ.get('ISUCON_ENV') != 'production'
