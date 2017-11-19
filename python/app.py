@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import json
+import ujson as json
 import os
 from datetime import timedelta, tzinfo
 import time
@@ -300,27 +300,22 @@ def get_api_stream_rooms_id(id):
             'data:%d\n\n' % (watcher_count)
         )
 
-
 	strokes = get_strokes(db, room['id'], last_stroke_id)
-        # app.logger.info(strokes)
+        points_all = get_strokes_with_points(db, room['id'], last_stroke_id)
+        points = {}
+        for point in points_all:
+            stroke_id = point['stroke_id']
+            points.setdefault(stroke_id, [])
+            points[stroke_id].append(point)
 
 	for stroke in strokes:
-	    stroke['points'] = get_stroke_points(db, stroke['id'])
+	    stroke['points'] = points[stroke['id']]
 	    yield print_and_flush(
 	    	'id:' + str(stroke['id']) + '\n\n' +
 		'event:stroke\n' +
 		'data:' + json.dumps(type_cast_stroke_data(stroke)) + '\n\n'
 	    )
 	    last_stroke_id = stroke['id']
-
-	update_room_watcher(db, room['id'], token['id'])
-	new_watcher_count = get_watcher_count(db, room['id'])
-	if new_watcher_count != watcher_count:
-	    watcher_count = new_watcher_count
-	    yield print_and_flush(
-	        'event:watcher_count\n' +
-	        'data:%d\n\n' % (watcher_count)
-	    )
 
     return Response(gen(db, room, token, last_stroke_id), mimetype='text/event-stream')
 
