@@ -5,7 +5,7 @@ Description = isucon6 final main application in python
 WorkingDirectory=/home/isucon/webapp/python
 EnvironmentFile=/home/isucon/webapp/env.sh
 
-ExecStart = /home/isucon/webapp/python/venv/bin/gunicorn -w 32 -b :8001 app:app
+ExecStart = /home/isucon/webapp/python/venv/bin/gunicorn -w 32 --threads 8 -b :8001 app:app
 
 Restart   = always
 Type      = simple
