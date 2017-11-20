@@ -12,12 +12,12 @@ if [ -e conf/nginx.conf ]; then
 fi
 
 # MySQL
-if [ "$(pgrep mysql | wc -l)" ]; then
-  mysqladmin -uroot -ppassword flush-logs
-fi
-
 if [ -e /var/log/mysql/mysql-slow.log ]; then
   mv /var/log/mysql/mysql-slow.log /var/log/mysql/mysql-slow.log.$now
+fi
+
+if [ "$(pgrep mysql | wc -l)" ]; then
+  mysqladmin -uroot -ppassword flush-logs
 fi
 
 if [ -e conf/my.cnf ]; then
