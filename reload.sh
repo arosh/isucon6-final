@@ -34,6 +34,16 @@ if [ -e conf/isuketch.react.service ]; then
   cp conf/isuketch.react.service /etc/systemd/system/isuketch.react.service
 fi
 
+# system
+if [ -e conf/sysctl.conf ]; then
+  cp conf/sysctl.conf /etc/sysctl.conf
+  sysctl -p
+fi
+
+if [ -e conf/limits.conf ]; then
+  cp conf/limits.conf /etc/security/limits.conf
+fi
+
 systemctl daemon-reload
 systemctl reload nginx
 systemctl restart mysql isuketch.python isuketch.react

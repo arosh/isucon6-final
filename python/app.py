@@ -3,10 +3,17 @@ import json
 import os
 from datetime import timedelta, tzinfo
 import time
+import redis
 
 import MySQLdb.cursors
 
 from flask import Flask, jsonify, request, Response
+
+REDIS_POOL = redis.ConnectionPool(host='localhost', port=6379, db=0)
+
+
+def get_redis():
+    return redis.StrictRedis(connection_pool=REDIS_POOL)
 
 
 def get_db():
@@ -248,21 +255,27 @@ def get_api_rooms_id(id):
         res.status_code = 500
         return res
 
-    strokes = get_strokes(db, room['id'], 0)
-    points_all = get_strokes_with_points(db, room['id'], 0)
-    points = {}
-    for point in points_all:
-        stroke_id = point['stroke_id']
-        points.setdefault(stroke_id, [])
-        points[stroke_id].append(point)
-
-    for i, stroke in enumerate(strokes):
-        strokes[i]['points'] = points[stroke['id']]
-
-    room['strokes'] = strokes
     room['watcher_count'] = get_watcher_count(db, room['id'])
+    r = get_redis()
+    if r.exists(room['id']):
+        res = type_cast_room_data(room)
+        res['strokes'] = eval(r.get(room['id']))
+    else:
+        strokes = get_strokes(db, room['id'], 0)
+        points_all = get_strokes_with_points(db, room['id'], 0)
+        points = {}
+        for point in points_all:
+            stroke_id = point['stroke_id']
+            points.setdefault(stroke_id, [])
+            points[stroke_id].append(point)
 
-    return jsonify({'room': type_cast_room_data(room)})
+        for i, stroke in enumerate(strokes):
+            strokes[i]['points'] = points[stroke['id']]
+
+        room['strokes'] = strokes
+        res = type_cast_room_data(room)
+        r.set(room['id'], res['strokes'])
+    return jsonify({'room': res})
 
 
 @app.route('/api/stream/rooms/<id>')
@@ -384,6 +397,10 @@ def post_api_strokes_rooms_id(id):
         filename = '../react/img/' + id + '.svg'
         if os.path.exists(filename):
             os.remove(filename)
+        
+        r = get_redis()
+        if r.exists(room['id']):
+            r.delete(room['id'])
     except Exception as e:
         cursor.connection.rollback()
         app.logger.error(e)
