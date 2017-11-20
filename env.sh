@@ -4,7 +4,5 @@ MYSQL_PORT=3306
 MYSQL_USER=isucon
 MYSQL_PASS=isucon
 API=http://127.0.0.1:8001
-SSL_KEY=/home/isucon/webapp/ssl/oreore.key
-SSL_CERT=/home/isucon/webapp/ssl/oreore.crt
 NODE_ENV=production
 PORT=8000

@@ -4,6 +4,7 @@ import os
 from datetime import timedelta, tzinfo
 import time
 import redis
+import pickle
 
 import MySQLdb.cursors
 
@@ -258,8 +259,9 @@ def get_api_rooms_id(id):
     room['watcher_count'] = get_watcher_count(db, room['id'])
     r = get_redis()
     if r.exists(room['id']):
+        strokes = r.get(room['id'])
         res = type_cast_room_data(room)
-        res['strokes'] = eval(r.get(room['id']))
+        res['strokes'] = pickle.loads(strokes)
     else:
         strokes = get_strokes(db, room['id'], 0)
         points_all = get_strokes_with_points(db, room['id'], 0)
@@ -274,7 +276,7 @@ def get_api_rooms_id(id):
 
         room['strokes'] = strokes
         res = type_cast_room_data(room)
-        r.set(room['id'], res['strokes'])
+        r.set(room['id'], pickle.dumps(res['strokes'], -1))
     return jsonify({'room': res})
 
 
