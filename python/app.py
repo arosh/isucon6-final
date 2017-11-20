@@ -125,10 +125,10 @@ def get_stroke_points(db, stroke_id):
     return select_all(db, sql, {'stroke_id': stroke_id})
 
 
-def get_strokes(db, room_id):
+def get_strokes(db, room_id, greater_than_id):
     sql = 'SELECT `id`, `room_id`, `width`, `red`, `green`, `blue`, `alpha`, `created_at` FROM `strokes`'
-    sql += ' WHERE `room_id` = %(room_id)s ORDER BY `id` ASC'
-    return select_all(db, sql, {'room_id': room_id})
+    sql += ' WHERE `room_id` = %(room_id)s AND `id` > %(greater_than_id)s ORDER BY `id` ASC'
+    return select_all(db, sql, {'room_id': room_id, 'greater_than_id': greater_than_id})
 
 
 def get_room(db, room_id):
@@ -183,7 +183,7 @@ def get_api_rooms():
     rooms = []
     for result in results:
         room = get_room(db, result['room_id'])
-        strokes = get_strokes(db, room['id'])
+        strokes = get_strokes(db, room['id'], 0)
         room['stroke_count'] = len(strokes)
         rooms.append(room)
 
@@ -236,7 +236,7 @@ def post_api_rooms():
     room = get_room(db, room_id)
     return jsonify({'room': type_cast_room_data(room)})
 
-def get_strokes_with_points(db, room_id):
+def get_strokes_with_points(db, room_id, greater_than_id):
     sql = '''
     SELECT
         `points`.`id` AS `id`,
@@ -245,9 +245,9 @@ def get_strokes_with_points(db, room_id):
         `points`.`y` AS `y`
     FROM `strokes`
     JOIN `points` ON `points`.`stroke_id` = `strokes`.`id`
-    WHERE `strokes`.`room_id` = %(room_id)s
+    WHERE `strokes`.`room_id` = %(room_id)s AND `strokes`.`id` > %(greater_than_id)s
     ORDER BY `points`.`id` ASC'''
-    return select_all(db, sql, {'room_id': room_id})
+    return select_all(db, sql, {'room_id': room_id, 'greater_than_id': greater_than_id})
 
 
 @app.route('/api/rooms/<id>')
@@ -262,13 +262,13 @@ def get_api_rooms_id(id):
 
     room['watcher_count'] = get_watcher_count(db, room['id'])
     r = get_redis()
-    strokes = r.get(room['id'])
-    if strokes:
+    if r.exists(room['id']):
+        strokes = r.get(room['id'])
         res = type_cast_room_data(room)
         res['strokes'] = pickle.loads(strokes)
     else:
-        strokes = get_strokes(db, room['id'])
-        points_all = get_strokes_with_points(db, room['id'])
+        strokes = get_strokes(db, room['id'], 0)
+        points_all = get_strokes_with_points(db, room['id'], 0)
         points = {}
         for point in points_all:
             stroke_id = point['stroke_id']
@@ -319,8 +319,8 @@ def get_api_stream_rooms_id(id):
             'data:%d\n\n' % (watcher_count)
         )
 
-        strokes = get_strokes(db, room['id'])
-        points_all = get_strokes_with_points(db, room['id'])
+	strokes = get_strokes(db, room['id'], last_stroke_id)
+        points_all = get_strokes_with_points(db, room['id'], last_stroke_id)
         points = {}
         for point in points_all:
             stroke_id = point['stroke_id']
@@ -328,8 +328,6 @@ def get_api_stream_rooms_id(id):
             points[stroke_id].append(point)
 
 	for stroke in strokes:
-            if stroke['id'] <= last_stroke_id:
-                continue
 	    stroke['points'] = points[stroke['id']]
 	    yield print_and_flush(
 	    	'id:' + str(stroke['id']) + '\n\n' +
@@ -365,7 +363,7 @@ def post_api_strokes_rooms_id(id):
         res.status_code = 400
         return res
 
-    strokes = get_strokes(db, room['id'])
+    strokes = get_strokes(db, room['id'], 0)
     if len(strokes) == 0:
         sql = 'SELECT COUNT(*) AS cnt FROM `room_owners` WHERE `room_id` = %(room_id)s AND `token_id` = %(token_id)s'
         result = select_one(db, sql, {'room_id': room['id'], 'token_id': token['id']})
@@ -402,7 +400,8 @@ def post_api_strokes_rooms_id(id):
             os.remove(filename)
         
         r = get_redis()
-        r.delete(room['id'])
+        if r.exists(room['id']):
+            r.delete(room['id'])
     except Exception as e:
         cursor.connection.rollback()
         app.logger.error(e)
