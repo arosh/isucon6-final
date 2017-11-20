@@ -16,17 +16,21 @@ REDIS_POOL = redis.ConnectionPool(host='localhost', port=6379, db=0)
 def get_redis():
     return redis.StrictRedis(connection_pool=REDIS_POOL)
 
+_db = None
 
 def get_db():
-    host = os.environ.get('MYSQL_HOST', 'localhost')
-    port = int(os.environ.get('MYSQL_PORT', 3306))
-    user = os.environ.get('MYSQL_USER', 'root')
-    passwd = os.environ.get('MYSQL_PASS', '')
-    dbname = 'isuketch'
-    charset = 'utf8mb4'
-    cursorclass = MySQLdb.cursors.DictCursor
-    autocommit = True
-    return MySQLdb.connect(host=host, port=port, user=user, passwd=passwd, db=dbname, cursorclass=cursorclass, charset=charset, autocommit=autocommit)
+    global _db
+    if _db is None:
+        host = os.environ.get('MYSQL_HOST', 'localhost')
+        port = int(os.environ.get('MYSQL_PORT', 3306))
+        user = os.environ.get('MYSQL_USER', 'root')
+        passwd = os.environ.get('MYSQL_PASS', '')
+        dbname = 'isuketch'
+        charset = 'utf8mb4'
+        cursorclass = MySQLdb.cursors.DictCursor
+        autocommit = True
+        _db = MySQLdb.connect(host=host, port=port, user=user, passwd=passwd, db=dbname, cursorclass=cursorclass, charset=charset, autocommit=autocommit)
+    return _db
 
 
 def execute(db, sql, params={}):
