@@ -262,25 +262,13 @@ def get_api_rooms_id(id):
 
     room['watcher_count'] = get_watcher_count(db, room['id'])
     r = get_redis()
-    strokes = r.get(room['id'])
-    if strokes:
-        res = type_cast_room_data(room)
-        res['strokes'] = pickle.loads(strokes)
+    if not r.exists(room['id']):
+        strokes = create_cache(r, db, room['id'])
     else:
-        strokes = get_strokes(db, room['id'])
-        points_all = get_strokes_with_points(db, room['id'])
-        points = {}
-        for point in points_all:
-            stroke_id = point['stroke_id']
-            points.setdefault(stroke_id, [])
-            points[stroke_id].append(point)
-
-        for i, stroke in enumerate(strokes):
-            strokes[i]['points'] = points[stroke['id']]
-
-        room['strokes'] = strokes
-        res = type_cast_room_data(room)
-        r.set(room['id'], pickle.dumps(res['strokes'], -1))
+        strokes = r.lrange(room['id'], 0, -1)
+        strokes = [pickle.loads(stroke) for stroke in strokes]
+    room['strokes'] = strokes
+    res = type_cast_room_data(room)
     return jsonify({'room': res})
 
 
@@ -309,7 +297,6 @@ def get_api_stream_rooms_id(id):
         last_stroke_id = request.headers.get('Last-Event-ID')
 
     def gen(db, room, token, last_stroke_id):
-
         update_room_watcher(db, room['id'], token['id'])
         watcher_count = get_watcher_count(db, room['id'])
 
@@ -319,27 +306,41 @@ def get_api_stream_rooms_id(id):
             'data:%d\n\n' % (watcher_count)
         )
 
-        strokes = get_strokes(db, room['id'])
-        points_all = get_strokes_with_points(db, room['id'])
-        points = {}
-        for point in points_all:
-            stroke_id = point['stroke_id']
-            points.setdefault(stroke_id, [])
-            points[stroke_id].append(point)
+        r = get_redis()
+        if not r.exists(room['id']):
+            strokes = create_cache(r, db, room['id'])
+        else:
+            strokes = r.lrange(room['id'], last_stroke_id, -1)
+            strokes = [pickle.loads(stroke) for stroke in strokes]
 
-	for stroke in strokes:
+        for stroke in strokes:
             if stroke['id'] <= last_stroke_id:
                 continue
-	    stroke['points'] = points[stroke['id']]
-	    yield print_and_flush(
-	    	'id:' + str(stroke['id']) + '\n\n' +
-		'event:stroke\n' +
-		'data:' + json.dumps(type_cast_stroke_data(stroke)) + '\n\n'
-	    )
-	    last_stroke_id = stroke['id']
+            yield print_and_flush(
+                'id:' + str(stroke['id']) + '\n\n' +
+                'event:stroke\n' +
+                'data:' + json.dumps(type_cast_stroke_data(stroke)) + '\n\n'
+            )
+            last_stroke_id = stroke['id']
 
     return Response(gen(db, room, token, last_stroke_id), mimetype='text/event-stream')
 
+def create_cache(r, db, room_id):
+    r.delete(room_id)
+
+    strokes = get_strokes(db, room_id)
+    points_all = get_strokes_with_points(db, room_id)
+    points = {}
+    for point in points_all:
+        stroke_id = point['stroke_id']
+        points.setdefault(stroke_id, [])
+        points[stroke_id].append(point)
+
+    for stroke in strokes:
+        stroke['points'] = points[stroke['id']]
+
+    r.rpush(room_id, *[pickle.dumps(stroke, -1) for stroke in strokes])
+    return strokes
 
 @app.route('/api/strokes/rooms/<id>', methods=['POST'])
 def post_api_strokes_rooms_id(id):
@@ -397,12 +398,6 @@ def post_api_strokes_rooms_id(id):
                 'y': point['y']
             })
         cursor.connection.commit()
-        filename = '../react/img/' + id + '.svg'
-        if os.path.exists(filename):
-            os.remove(filename)
-        
-        r = get_redis()
-        r.delete(room['id'])
     except Exception as e:
         cursor.connection.rollback()
         app.logger.error(e)
@@ -412,11 +407,21 @@ def post_api_strokes_rooms_id(id):
     else:
         cursor.connection.autocommit(True)
 
+    filename = '../react/img/' + id + '.svg'
+    if os.path.exists(filename):
+        os.remove(filename)
+
     sql = 'SELECT `id`, `room_id`, `width`, `red`, `green`, `blue`, `alpha`, `created_at` FROM `strokes`'
     sql += ' WHERE `id` = %(stroke_id)s'
     stroke = select_one(db, sql, {'stroke_id': stroke_id})
 
     stroke['points'] = get_stroke_points(db, stroke_id)
+
+    r = get_redis()
+    if not r.exists(room['id']):
+        create_cache(r, db, room['id'])
+    else:
+        r.rpush(room['id'], pickle.dumps(stroke, -1))
 
     return jsonify({'stroke': type_cast_stroke_data(stroke)})
 

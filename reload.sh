@@ -34,6 +34,9 @@ if [ -e conf/isuketch.react.service ]; then
   cp conf/isuketch.react.service /etc/systemd/system/isuketch.react.service
 fi
 
+# Redis
+redis-cli flushall
+
 # system
 if [ -e conf/sysctl.conf ]; then
   cp conf/sysctl.conf /etc/sysctl.conf
