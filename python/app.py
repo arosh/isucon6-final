@@ -262,10 +262,10 @@ def get_api_rooms_id(id):
 
     room['watcher_count'] = get_watcher_count(db, room['id'])
     r = get_redis()
-    if r.exists(room['id']):
-        strokes = r.get(room['id'])
+    strokes = r.get(room['id'])
+    if strokes is not None:
+        room['strokes'] = pickle.loads(strokes)
         res = type_cast_room_data(room)
-        res['strokes'] = pickle.loads(strokes)
     else:
         strokes = get_strokes(db, room['id'], 0)
         points_all = get_strokes_with_points(db, room['id'], 0)
@@ -278,9 +278,9 @@ def get_api_rooms_id(id):
         for i, stroke in enumerate(strokes):
             strokes[i]['points'] = points[stroke['id']]
 
+        r.set(room['id'], pickle.dumps(strokes, -1))
         room['strokes'] = strokes
         res = type_cast_room_data(room)
-        r.set(room['id'], pickle.dumps(res['strokes'], -1))
     return jsonify({'room': res})
 
 
@@ -309,7 +309,6 @@ def get_api_stream_rooms_id(id):
         last_stroke_id = request.headers.get('Last-Event-ID')
 
     def gen(db, room, token, last_stroke_id):
-
         update_room_watcher(db, room['id'], token['id'])
         watcher_count = get_watcher_count(db, room['id'])
 
@@ -334,7 +333,6 @@ def get_api_stream_rooms_id(id):
 		'event:stroke\n' +
 		'data:' + json.dumps(type_cast_stroke_data(stroke)) + '\n\n'
 	    )
-	    last_stroke_id = stroke['id']
 
     return Response(gen(db, room, token, last_stroke_id), mimetype='text/event-stream')
 
@@ -400,8 +398,7 @@ def post_api_strokes_rooms_id(id):
             os.remove(filename)
         
         r = get_redis()
-        if r.exists(room['id']):
-            r.delete(room['id'])
+        r.delete(room['id'])
     except Exception as e:
         cursor.connection.rollback()
         app.logger.error(e)
