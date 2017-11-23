@@ -176,15 +176,32 @@ def get_api_rooms():
 
     db = get_db()
 
-    sql = 'SELECT `room_id`, MAX(`id`) AS `max_id` FROM `strokes`'
-    sql += ' GROUP BY `room_id` ORDER BY `max_id` DESC LIMIT 100'
+    sql = '''
+    SELECT
+        strokes.room_id AS room_id,
+        rooms.name AS room_name,
+        rooms.canvas_width AS room_canvas_width,
+        rooms.canvas_height AS room_canvas_height,
+        rooms.created_at AS room_created_at,
+        MAX(strokes.id) AS max_id,
+        (SELECT COUNT(*) FROM strokes AS s WHERE s.room_id = strokes.room_id) AS stroke_count
+    FROM strokes
+    JOIN rooms ON rooms.id = strokes.room_id
+    GROUP BY strokes.room_id
+    ORDER BY max_id DESC LIMIT 100;
+    '''
+
     results = select_all(db, sql)
 
     rooms = []
     for result in results:
-        room = get_room(db, result['room_id'])
-        strokes = get_strokes(db, room['id'], 0)
-        room['stroke_count'] = len(strokes)
+        room = {}
+        room['id'] = result['room_id']
+        room['name'] = result['room_name']
+        room['canvas_width'] = result['room_canvas_width']
+        room['canvas_height'] = result['room_canvas_height']
+        room['created_at'] = result['room_created_at']
+        room['stroke_count'] = result['stroke_count']
         rooms.append(room)
 
     return jsonify({'rooms': list(map(type_cast_room_data, rooms))})
@@ -318,7 +335,7 @@ def get_api_stream_rooms_id(id):
             'data:%d\n\n' % (watcher_count)
         )
 
-	strokes = get_strokes(db, room['id'], last_stroke_id)
+        strokes = get_strokes(db, room['id'], last_stroke_id)
         points_all = get_strokes_with_points(db, room['id'], last_stroke_id)
         points = {}
         for point in points_all:
@@ -326,13 +343,13 @@ def get_api_stream_rooms_id(id):
             points.setdefault(stroke_id, [])
             points[stroke_id].append(point)
 
-	for stroke in strokes:
-	    stroke['points'] = points[stroke['id']]
-	    yield print_and_flush(
-	    	'id:' + str(stroke['id']) + '\n\n' +
-		'event:stroke\n' +
-		'data:' + json.dumps(type_cast_stroke_data(stroke)) + '\n\n'
-	    )
+        for stroke in strokes:
+            stroke['points'] = points[stroke['id']]
+            yield print_and_flush(
+                'id:' + str(stroke['id']) + '\n\n' +
+                'event:stroke\n' +
+                'data:' + json.dumps(type_cast_stroke_data(stroke)) + '\n\n'
+            )
 
     return Response(gen(db, room, token, last_stroke_id), mimetype='text/event-stream')
 
@@ -425,6 +442,9 @@ def post_api_strokes_rooms_id(id):
 #]
 #f = open("lineprof.log", "w")
 #app.wsgi_app = LineProfilerMiddleware(app.wsgi_app, filters=filters, stream=f)
+
+from werkzeug.contrib.profiler import ProfilerMiddleware
+app.wsgi_app = ProfilerMiddleware(app.wsgi_app, profile_dir="/tmp/profile")
 
 if __name__ == '__main__':
     debug = os.environ.get('ISUCON_ENV') != 'production'
