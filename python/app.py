@@ -443,8 +443,8 @@ def post_api_strokes_rooms_id(id):
 #f = open("lineprof.log", "w")
 #app.wsgi_app = LineProfilerMiddleware(app.wsgi_app, filters=filters, stream=f)
 
-from werkzeug.contrib.profiler import ProfilerMiddleware
-app.wsgi_app = ProfilerMiddleware(app.wsgi_app, profile_dir="/tmp/profile")
+#from werkzeug.contrib.profiler import ProfilerMiddleware
+#app.wsgi_app = ProfilerMiddleware(app.wsgi_app, profile_dir="/tmp/profile")
 
 if __name__ == '__main__':
     debug = os.environ.get('ISUCON_ENV') != 'production'
