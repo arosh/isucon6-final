@@ -173,38 +173,43 @@ def post_api_csrf_token():
 
 @app.route('/api/rooms', methods=['GET'])
 def get_api_rooms():
+    r = get_redis()
+    rooms = r.get('rooms')
 
-    db = get_db()
+    if rooms is not None:
+        rooms = pickle.loads(rooms)
+    else:
+        db = get_db()
+        sql = '''
+        SELECT
+            strokes.room_id AS room_id,
+            rooms.name AS room_name,
+            rooms.canvas_width AS room_canvas_width,
+            rooms.canvas_height AS room_canvas_height,
+            rooms.created_at AS room_created_at,
+            MAX(strokes.id) AS max_id,
+            (SELECT COUNT(*) FROM strokes AS s WHERE s.room_id = strokes.room_id) AS stroke_count
+        FROM strokes
+        JOIN rooms ON rooms.id = strokes.room_id
+        GROUP BY strokes.room_id
+        ORDER BY max_id DESC LIMIT 100;
+        '''
+        results = select_all(db, sql)
 
-    sql = '''
-    SELECT
-        strokes.room_id AS room_id,
-        rooms.name AS room_name,
-        rooms.canvas_width AS room_canvas_width,
-        rooms.canvas_height AS room_canvas_height,
-        rooms.created_at AS room_created_at,
-        MAX(strokes.id) AS max_id,
-        (SELECT COUNT(*) FROM strokes AS s WHERE s.room_id = strokes.room_id) AS stroke_count
-    FROM strokes
-    JOIN rooms ON rooms.id = strokes.room_id
-    GROUP BY strokes.room_id
-    ORDER BY max_id DESC LIMIT 100;
-    '''
+        rooms = []
+        for result in results:
+            room = {}
+            room['id'] = result['room_id']
+            room['name'] = result['room_name']
+            room['canvas_width'] = result['room_canvas_width']
+            room['canvas_height'] = result['room_canvas_height']
+            room['created_at'] = result['room_created_at']
+            room['stroke_count'] = result['stroke_count']
+            rooms.append(room)
+        rooms = list(map(type_cast_room_data, rooms))
+        r.set('rooms', pickle.dumps(rooms, -1))
 
-    results = select_all(db, sql)
-
-    rooms = []
-    for result in results:
-        room = {}
-        room['id'] = result['room_id']
-        room['name'] = result['room_name']
-        room['canvas_width'] = result['room_canvas_width']
-        room['canvas_height'] = result['room_canvas_height']
-        room['created_at'] = result['room_created_at']
-        room['stroke_count'] = result['stroke_count']
-        rooms.append(room)
-
-    return jsonify({'rooms': list(map(type_cast_room_data, rooms))})
+    return jsonify({'rooms': rooms})
 
 
 @app.route('/api/rooms', methods=['POST'])
@@ -241,6 +246,9 @@ def post_api_rooms():
             'token_id': token['id'],
         })
         cursor.connection.commit()
+        r = get_redis()
+        r.delete('rooms')
+        r.delete('/')
     except Exception as e:
         cursor.connection.rollback()
         app.logger.error(e)
@@ -279,7 +287,7 @@ def get_api_rooms_id(id):
 
     room['watcher_count'] = get_watcher_count(db, room['id'])
     r = get_redis()
-    strokes = r.get(room['id'])
+    strokes = r.get('stroke:%d' % room['id'])
     if strokes is not None:
         room['strokes'] = pickle.loads(strokes)
         res = type_cast_room_data(room)
@@ -292,10 +300,10 @@ def get_api_rooms_id(id):
             points.setdefault(stroke_id, [])
             points[stroke_id].append(point)
 
-        for i, stroke in enumerate(strokes):
-            strokes[i]['points'] = points[stroke['id']]
+        for stroke in strokes:
+            stroke['points'] = points[stroke['id']]
 
-        r.set(room['id'], pickle.dumps(strokes, -1))
+        r.set('stroke:%d' % room['id'], pickle.dumps(strokes, -1))
         room['strokes'] = strokes
         res = type_cast_room_data(room)
     return jsonify({'room': res})
@@ -415,7 +423,7 @@ def post_api_strokes_rooms_id(id):
             os.remove(filename)
         
         r = get_redis()
-        r.delete(room['id'])
+        r.delete('stroke:%d' % room['id'], 'rooms', '/', '/rooms/%d' % room['id'])
     except Exception as e:
         cursor.connection.rollback()
         app.logger.error(e)

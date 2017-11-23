@@ -44,6 +44,9 @@ if [ -e conf/limits.conf ]; then
   cp conf/limits.conf /etc/security/limits.conf
 fi
 
+# Redis
+redis-cli flushall
+
 systemctl daemon-reload
 systemctl reload nginx
 systemctl restart mysql isuketch.python isuketch.react

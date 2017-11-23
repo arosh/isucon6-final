@@ -10,6 +10,7 @@ import AsyncProps, { loadPropsOnServer } from 'async-props';
 import fetchJson from './util/fetch-json';
 import proxy from 'http-proxy-middleware';
 import Canvas from './components/Canvas';
+import * as redis from 'redis';
 
 // for material-ui https://www.npmjs.com/package/material-ui
 import injectTapEventPlugin from 'react-tap-event-plugin';
@@ -50,6 +51,8 @@ app.get('/img/:id', (req, res) => {
     });
 });
 
+const redisClient = redis.createClient(6379, 'localhost', {no_ready_check: true});
+
 app.get('*', (req, res) => {
   // https://github.com/reactjs/react-router/blob/master/docs/guides/ServerRendering.md
   match({ routes, location: req.url }, (err, redirectLocation, renderProps) => {
@@ -70,22 +73,28 @@ app.get('*', (req, res) => {
         const csrfToken = json.token;
         const loadContext = { apiBaseUrl, csrfToken };
 
-        // https://github.com/ryanflorence/async-props
-        loadPropsOnServer(renderProps, loadContext, (err, asyncProps, scriptTag) => {
+        redisClient.get(req.url, (err, appHTML) => {
           if (err) {
             console.error(err);
             return res.status(500).send('Internal Server Error');
-          } else {
-            const appHTML = renderToString(
-              <AsyncProps {...renderProps} {...asyncProps} />
-            );
-
-            const html = createHtml(appHTML, scriptTag, csrfToken);
-
-            return res.status(200).send(html);
           }
+          // https://github.com/ryanflorence/async-props
+          loadPropsOnServer(renderProps, loadContext, (err, asyncProps, scriptTag) => {
+            if (err) {
+              console.error(err);
+              return res.status(500).send('Internal Server Error');
+            } else {
+              if (appHTML === null) {
+                appHTML = renderToString(
+                  <AsyncProps {...renderProps} {...asyncProps} />
+                );
+                redisClient.set(req.url, appHTML);
+              }
+              const html = createHtml(appHTML, scriptTag, csrfToken);
+              return res.status(200).send(html);
+            }
+          });
         });
-
       })
       .catch((err) => {
         console.error(err);
