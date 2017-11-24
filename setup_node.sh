@@ -11,5 +11,6 @@ sudo apt install -y nodejs
     rm -rf build
   fi
   npm install
+  npm install redis
   NODE_ENV=production npm run build
 )
