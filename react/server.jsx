@@ -51,7 +51,15 @@ app.get('/img/:id', (req, res) => {
     });
 });
 
-const redisClient = redis.createClient(6379, 'localhost', {no_ready_check: true});
+const REDIS_HOST = process.env.REDIS_HOST;
+if (!REDIS_HOST) {
+  throw 'Please set environment variable REDIS_HOST=example.com';
+}
+const REDIS_PORT = process.env.REDIS_PORT;
+if (!REDIS_PORT) {
+  throw 'Please set environment variable REDIS_PORT=example.com';
+}
+const redisClient = redis.createClient(REDIS_PORT, REDIS_HOST, {no_ready_check: true});
 
 app.get('*', (req, res) => {
   // https://github.com/reactjs/react-router/blob/master/docs/guides/ServerRendering.md
