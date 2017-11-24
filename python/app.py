@@ -10,7 +10,9 @@ import MySQLdb.cursors
 
 from flask import Flask, jsonify, request, Response
 
-REDIS_POOL = redis.ConnectionPool(host='localhost', port=6379, db=0)
+REDIS_HOST = os.environ.get('REDIS_HOST', 'localhost')
+REDIS_PORT = int(os.environ.get('REDIS_PORT', 6379))
+REDIS_POOL = redis.ConnectionPool(host=REDIS_HOST, port=REDIS_PORT, db=0)
 
 
 def get_redis():
