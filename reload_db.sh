@@ -35,6 +35,9 @@ if [ -e conf/limits.conf ]; then
 fi
 
 # Redis
+if [ -e conf/redis.conf ]; then
+  cp conf/redis.conf /etc/redis/redis.conf
+fi
 redis-cli flushall
 
 systemctl daemon-reload
